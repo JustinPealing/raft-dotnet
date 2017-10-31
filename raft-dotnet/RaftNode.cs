@@ -13,7 +13,7 @@ namespace raft_dotnet
 
     public class RaftNode
     {
-        private readonly IRaftRpcClient[] _others;
+        public IRaftRpcClient[] Others { get; set; }
         private NodeState _state;
 
         private int _currentTerm = 0;
@@ -22,17 +22,17 @@ namespace raft_dotnet
 
         private int _commitIndex = 0;
         private int _lastApplied = 0;
-
+        
         public RaftNode(IRaftRpcClient[] others)
         {
-            _others = others;
+            Others = others;
             foreach (var other in others)
             {
                 other.Message += (sender, args) => MessageRecieved(args.Message);
             }
         }
 
-        public void MessageRecieved(RaftMessage message)
+        private void MessageRecieved(RaftMessage message)
         {
             if (message.Term > _currentTerm)
             {
@@ -52,7 +52,7 @@ namespace raft_dotnet
         private async Task BeginElection()
         {
             VoteForSelf();
-            foreach (var node in _others)
+            foreach (var node in Others)
             {
                 var result = await node.RequestVoteAsync(new RequestVoteArguments
                 {
