@@ -8,13 +8,13 @@ namespace raft_dotnet.Tests
         
         public async Task<RequestVoteResult> RequestVoteAsync(RequestVoteArguments arguments)
         {
-            await Task.Delay(1);
+            await Task.Delay(50);
             return await Remote.RequestVoteAsync(arguments);
         }
 
         public async Task<AppendEntriesResult> AppendEntriesAsync(AppendEntriesArguments arguments)
         {
-            await Task.Delay(1);
+            await Task.Delay(50);
             return await Remote.AppendEntriesAsync(arguments);
         }
     }

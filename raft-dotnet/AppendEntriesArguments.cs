@@ -2,7 +2,7 @@
 {
     public class AppendEntriesArguments : RaftMessage
     {
-        public int LeaderId { get; set; }
+        public string LeaderId { get; set; }
 
         public int PrevLogIndex { get; set; }
 

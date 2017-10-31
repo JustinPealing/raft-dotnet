@@ -21,9 +21,9 @@ namespace raft_dotnet
         private readonly ElectionTimeout _electionTimeout = new ElectionTimeout();
         private readonly ElectionTimeout _appendEntriesTimeout = new ElectionTimeout();
 
-        private int _currentTerm = 0;
-        private int _currentTermVotes = 0;
-        private string _votedFor = null;
+        private int _currentTerm;
+        private int _currentTermVotes;
+        private string _votedFor;
         private IList<RaftLogEntry> _log = new List<RaftLogEntry>();
 
         private int _commitIndex = 0;
@@ -44,20 +44,16 @@ namespace raft_dotnet
             {
                 var request = new AppendEntriesArguments
                 {
-                    
+                    Term = _currentTerm,
+                    LeaderId = NodeName
                 };
-                node.AppendEntriesAsync(request).ContinueWith(AppendEntriesResponseAsync);
+                node.AppendEntriesAsync(request).ContinueWith(task => { AppendEntriesResponse(task.Result); });
             }
         }
 
-        private void AppendEntriesResponseAsync(Task<AppendEntriesResult> task)
+        private void AppendEntriesResponse(AppendEntriesResult result)
         {
-            AppendEntriesResponse(task.Result);
-        }
-
-        private void AppendEntriesResponse(AppendEntriesResult taskResult)
-        {
-
+            // TODO: Implement me
         }
 
         /// <summary>
@@ -77,13 +73,8 @@ namespace raft_dotnet
                     CandidateId = NodeName,
                     Term = _currentTerm
                 };
-                node.RequestVoteAsync(request).ContinueWith(RequestVoteResponseAsync);
+                node.RequestVoteAsync(request).ContinueWith(task => { RequestVoteResponse(task.Result); });
             }
-        }
-
-        private void RequestVoteResponseAsync(Task<RequestVoteResult> task)
-        {
-            RequestVoteResponse(task.Result);
         }
 
         private void RequestVoteResponse(RequestVoteResult result)
@@ -105,8 +96,10 @@ namespace raft_dotnet
         private void RecordVote()
         {
             _currentTermVotes++;
-            if (_currentTermVotes > Math.Ceiling(Others.Length / 2.0))
+            var majority = Math.Ceiling((Others.Length + 1) / 2.0);
+            if (_currentTermVotes >= majority)
             {
+                Console.WriteLine($"{NodeName} - Recieved Majority {_currentTermVotes} of {majority}");
                 _currentTerm++;
                 State = NodeState.Leader;
                 _electionTimeout.Dispose();
@@ -122,8 +115,6 @@ namespace raft_dotnet
 
         public async Task<RequestVoteResult> RequestVoteAsync(RequestVoteArguments arguments)
         {
-            Console.WriteLine($"{NodeName}: Recieved RequestVote");
-
             if (arguments.Term > _currentTerm)
             {
                 _currentTerm = arguments.Term;
@@ -134,6 +125,7 @@ namespace raft_dotnet
                 _electionTimeout.Reset();
                 if (_votedFor == null)
                 {
+                    Console.WriteLine($"{NodeName}: RequestVode from {arguments.CandidateId}, Voted yes");
                     _votedFor = arguments.CandidateId;
                     return new RequestVoteResult
                     {
@@ -142,6 +134,8 @@ namespace raft_dotnet
                     };
                 }
             }
+
+            Console.WriteLine($"{NodeName}: RequestVode from {arguments.CandidateId}, Voted no");
             return new RequestVoteResult
             {
                 Term = _currentTerm,
@@ -151,7 +145,7 @@ namespace raft_dotnet
 
         public async Task<AppendEntriesResult> AppendEntriesAsync(AppendEntriesArguments arguments)
         {
-            Console.WriteLine($"{NodeName}: Recieved AppendEntriesAsync");
+            Console.WriteLine($"{NodeName}: Recieved AppendEntriesAsync from {arguments.LeaderId}");
 
             if (arguments.Term > _currentTerm)
             {
@@ -161,6 +155,7 @@ namespace raft_dotnet
             if (arguments.Term == _currentTerm)
             {
                 _electionTimeout.Reset();
+                // TODO: Implement me
             }
             return new AppendEntriesResult
             {
