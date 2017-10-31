@@ -8,6 +8,23 @@ namespace ConsoleApp8
     {
         static void Main(string[] args)
         {
+            //SendMessages();
+
+            Console.WriteLine("Press enter to reset timer");
+            var timeout = new ElectionTimeout();
+            timeout.TimeoutReached += (sender, eventArgs) =>
+            {
+                Console.WriteLine("Timeout!");
+            };
+            while (true)
+            {
+                Console.ReadLine();
+                timeout.Reset(TimeSpan.FromSeconds(2));
+            }
+        }
+
+        private static void SendMessages()
+        {
             using (var client = new TcpClient("localhost", 13000))
             {
                 Write("Hello, World!", client);
