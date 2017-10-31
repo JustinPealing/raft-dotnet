@@ -1,22 +1,21 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace raft_dotnet.Tests
 {
     public class FakeRaftRpcClient : IRaftRpcClient
     {
         public RaftNode Remote { get; set; }
-
-        public event EventHandler<RaftMessageEventArgs> Message;
-
-        public Task<RequestVoteResult> RequestVoteAsync(RequestVoteArguments arguments)
+        
+        public async Task<RequestVoteResult> RequestVoteAsync(RequestVoteArguments arguments)
         {
-            throw new NotImplementedException();
+            await Task.Delay(1);
+            return await Remote.RequestVoteAsync(arguments);
         }
 
-        public Task<AppendEntriesResult> AppendEntriesAsync(AppendEntriesArguments arguments)
+        public async Task<AppendEntriesResult> AppendEntriesAsync(AppendEntriesArguments arguments)
         {
-            throw new NotImplementedException();
+            await Task.Delay(1);
+            return await Remote.AppendEntriesAsync(arguments);
         }
     }
 }

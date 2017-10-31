@@ -2,7 +2,7 @@
 {
     public class RequestVoteArguments : RaftMessage
     {
-        public int CandidateId { get; set; }
+        public string CandidateId { get; set; }
 
         public int LastLogIndex { get; set; }
 
