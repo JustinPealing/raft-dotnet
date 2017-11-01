@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 
-namespace ConsoleApp8
+namespace raft_dotnet
 {
     /// <summary>
     /// Tracks the election timeout and raises an event if Reset is not called before the timeout is reached.

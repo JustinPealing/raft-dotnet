@@ -2,6 +2,11 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp2.0</TargetFramework>
+    <RootNamespace>raft_dotnet</RootNamespace>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="protobuf-net" Version="2.3.2" />
+  </ItemGroup>
 
 </Project>

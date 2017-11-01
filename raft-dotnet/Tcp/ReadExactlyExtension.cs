@@ -1,7 +1,7 @@
 ﻿using System.IO;
 using System.Threading.Tasks;
 
-namespace ConsoleApp8
+namespace raft_dotnet.Tcp
 {
     public static class ReadExactlyExtension
     {
