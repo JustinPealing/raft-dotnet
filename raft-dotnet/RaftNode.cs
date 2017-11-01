@@ -16,6 +16,8 @@ namespace raft_dotnet
     {
         private static readonly Random Rnd = new Random();
         
+        private readonly object _lock = new object();
+
         private readonly string[] _nodes;
         public NodeState State { get; private set; }
 
@@ -70,20 +72,26 @@ namespace raft_dotnet
 
         private void SendAppendEntries()
         {
-            foreach (var node in _nodes)
+            lock (_lock)
             {
-                var request = new AppendEntriesArguments
+                foreach (var node in _nodes)
                 {
-                    Term = _currentTerm,
-                    LeaderId = NodeName
-                };
-                Communication.SendAppendEntries(node, request);
+                    var request = new AppendEntriesArguments
+                    {
+                        Term = _currentTerm,
+                        LeaderId = NodeName
+                    };
+                    Communication.SendAppendEntries(node, request);
+                }
             }
         }
 
         private void AppendEntriesResponse(AppendEntriesResult result)
         {
-            // TODO: Implement me
+            lock (_lock)
+            {
+                // TODO Implement me
+            }
         }
 
         /// <summary>
@@ -91,34 +99,40 @@ namespace raft_dotnet
         /// </summary>
         private void BeginElection()
         {
-            Log.Information("Begin Election on");
-
-            _currentTermVotes = 0;
-            RecordVote();
-            _votedFor = NodeName;
-            foreach (var node in _nodes)
+            lock (_lock)
             {
-                var request = new RequestVoteArguments
+                Log.Information("Begin Election");
+                State = NodeState.Candidate;
+                _currentTermVotes = 0;
+                RecordVote();
+                _votedFor = NodeName;
+                foreach (var node in _nodes)
                 {
-                    CandidateId = NodeName,
-                    Term = _currentTerm
-                };
-                Communication.SendRequestVote(node, request);
+                    var request = new RequestVoteArguments
+                    {
+                        CandidateId = NodeName,
+                        Term = _currentTerm
+                    };
+                    Communication.SendRequestVote(node, request);
+                }
             }
         }
 
         private void RequestVoteResponse(RequestVoteResult result)
         {
-            if (result.Term > _currentTerm)
+            lock (_lock)
             {
-                _currentTerm = result.Term;
-                State = NodeState.Follower;
-            }
-            if (result.Term == _currentTerm)
-            {
-                if (result.VoteGranted)
+                if (result.Term > _currentTerm)
                 {
-                    RecordVote();
+                    _currentTerm = result.Term;
+                    State = NodeState.Follower;
+                }
+                if (result.Term == _currentTerm)
+                {
+                    if (result.VoteGranted)
+                    {
+                        RecordVote();
+                    }
                 }
             }
         }
@@ -145,32 +159,35 @@ namespace raft_dotnet
 
         public RequestVoteResult RequestVote(RequestVoteArguments arguments)
         {
-            if (arguments.Term > _currentTerm)
+            lock (_lock)
             {
-                _currentTerm = arguments.Term;
-                State = NodeState.Follower;
-            }
-            if (arguments.Term == _currentTerm)
-            {
-                ResetElectionTimeout();
-                if (_votedFor == null)
+                if (arguments.Term > _currentTerm)
                 {
-                    Log.Information("RequestVote from {CandidateId}, Voted yes", arguments.CandidateId);
-                    _votedFor = arguments.CandidateId;
-                    return new RequestVoteResult
-                    {
-                        Term = _currentTerm,
-                        VoteGranted = true
-                    };
+                    _currentTerm = arguments.Term;
+                    State = NodeState.Follower;
                 }
-            }
+                if (arguments.Term == _currentTerm)
+                {
+                    ResetElectionTimeout();
+                    if (_votedFor == null)
+                    {
+                        Log.Information("RequestVote from {CandidateId}, Voted yes", arguments.CandidateId);
+                        _votedFor = arguments.CandidateId;
+                        return new RequestVoteResult
+                        {
+                            Term = _currentTerm,
+                            VoteGranted = true
+                        };
+                    }
+                }
 
-            Log.Information("RequestVote from {CandidateId}, Voted no", arguments.CandidateId);
-            return new RequestVoteResult
-            {
-                Term = _currentTerm,
-                VoteGranted = false
-            };
+                Log.Information("RequestVote from {CandidateId}, Voted no", arguments.CandidateId);
+                return new RequestVoteResult
+                {
+                    Term = _currentTerm,
+                    VoteGranted = false
+                };
+            }
         }
 
         private void ResetElectionTimeout()
@@ -181,22 +198,25 @@ namespace raft_dotnet
 
         public AppendEntriesResult AppendEntries(AppendEntriesArguments arguments)
         {
-            Log.Verbose("Recieved AppendEntriesAsync from {LeaderId}", arguments.LeaderId);
-            if (arguments.Term > _currentTerm)
+            lock (_lock)
             {
-                _currentTerm = arguments.Term;
-                State = NodeState.Follower;
+                Log.Verbose("Recieved AppendEntriesAsync from {LeaderId}", arguments.LeaderId);
+                if (arguments.Term > _currentTerm)
+                {
+                    _currentTerm = arguments.Term;
+                    State = NodeState.Follower;
+                }
+                if (arguments.Term == _currentTerm)
+                {
+                    ResetElectionTimeout();
+                    // TODO: Implement me
+                }
+                return new AppendEntriesResult
+                {
+                    Term = _currentTerm,
+                    Success = false,
+                };
             }
-            if (arguments.Term == _currentTerm)
-            {
-                ResetElectionTimeout();
-                // TODO: Implement me
-            }
-            return new AppendEntriesResult
-            {
-                Term = _currentTerm,
-                Success = false,
-            };
         }
     }
 }
