@@ -29,8 +29,8 @@ namespace ConsoleApp3
 
                 var node = new RaftNode(communication, nodes, nodes[index])
                 {
-                    MinEllectionTimeout = TimeSpan.FromMilliseconds(1500),
-                    MaxEllectionTimeout = TimeSpan.FromMilliseconds(3000)
+                    MinEllectionTimeoutMs = 1500,
+                    MaxEllectionTimeoutMs = 3000
                 };
                 node.Start();
                 Console.ReadLine();
