@@ -47,6 +47,7 @@ namespace raft_dotnet.Tcp
         {
             Task.Run(async () =>
             {
+                //Log.Information("Sending {@Message} to {Destination}", message, destination);
                 var client = _clients.GetOrAdd(destination, s => new TcpClient());
                 if (!client.Connected)
                 {
@@ -56,6 +57,12 @@ namespace raft_dotnet.Tcp
                 
                 var data = Serialize(message);
                 await client.GetStream().WriteAsync(data, 0, data.Length);
+            }).ContinueWith(task =>
+            {
+                if (task.Exception != null)
+                {
+                    Log.Warning(task.Exception, "Error sending message");
+                }
             });
         }
         
@@ -63,7 +70,7 @@ namespace raft_dotnet.Tcp
         {
             using (var memoryStream = new MemoryStream())
             {
-                Serializer.Serialize(memoryStream, new MessageWrapper {Message = arguments});
+                Serializer.SerializeWithLengthPrefix(memoryStream, new MessageWrapper {Message = arguments}, PrefixStyle.Base128);
                 return memoryStream.ToArray();
             }
         }
@@ -81,16 +88,17 @@ namespace raft_dotnet.Tcp
             listener.BeginAcceptTcpClient(ar =>
             {
                 var client = listener.EndAcceptTcpClient(ar);
-                ClientLoop(client);
+                Task.Run(() => ClientLoop(client));
                 BeginAcceptClient(listener);
             }, null);
         }
 
-        private async Task ClientLoop(TcpClient client)
+        private void ClientLoop(TcpClient client)
         {
             try
             {
-                await ClientLoopInner(client);
+                Log.Information("Client connected");
+                ClientLoopInner(client);
             }
             catch (Exception ex)
             {
@@ -99,14 +107,14 @@ namespace raft_dotnet.Tcp
             Log.Information("Client disconnected");
         }
 
-        private async Task ClientLoopInner(TcpClient client)
+        private void ClientLoopInner(TcpClient client)
         {
-            Log.Information("Client connected");
             using (var stream = client.GetStream())
             {
                 while (client.Connected)
                 {
-                    var request = Serializer.Deserialize<MessageWrapper>(stream);
+                    var request = Serializer.DeserializeWithLengthPrefix<MessageWrapper>(stream, PrefixStyle.Base128);
+                    Log.Information("Message recieved {@Message}", request.Message);
                     OnMessage(new RaftMessageEventArgs
                     {
                         Message = request.Message

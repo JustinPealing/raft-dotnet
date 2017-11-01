@@ -3,10 +3,10 @@
 namespace raft_dotnet.Communication
 {
     [ProtoContract]
-    [ProtoInclude(1, typeof(AppendEntriesArguments))]
-    [ProtoInclude(2, typeof(AppendEntriesResult))]
-    [ProtoInclude(3, typeof(RequestVoteArguments))]
-    [ProtoInclude(4, typeof(RequestVoteResult))]
+    [ProtoInclude(100, typeof(AppendEntriesArguments))]
+    [ProtoInclude(101, typeof(AppendEntriesResult))]
+    [ProtoInclude(102, typeof(RequestVoteArguments))]
+    [ProtoInclude(103, typeof(RequestVoteResult))]
     public class RaftMessage
     {
         [ProtoMember(1)]
