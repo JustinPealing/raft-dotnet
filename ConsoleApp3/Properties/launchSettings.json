@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "ConsoleApp3": {
+      "commandName": "Executable",
+      "executablePath": "C:\\git\\raft-dotnet\\ConsoleApp3\\Run.bat",
+      "workingDirectory": "bin\\Debug\\netcoreapp2.0\\"
+    }
+  }
+}

@@ -16,6 +16,7 @@ namespace ConsoleApp3
             };
 
             var index = int.Parse(args[0]);
+            Console.WriteLine($"Listening on {nodes[index]}");
             using (var communication = new TcpRaftCommunication(nodes[index]))
             {
                 communication.Start();
