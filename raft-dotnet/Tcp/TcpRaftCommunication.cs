@@ -12,7 +12,7 @@ namespace raft_dotnet.Tcp
 {
     public class TcpRaftCommunication : IRaftCommunication, IDisposable
     {
-        private string _listenAddress;
+        private readonly string _listenAddress;
         private readonly ConcurrentDictionary<string, TcpClient> _clients = new ConcurrentDictionary<string, TcpClient>();
         private TcpListener _listener;
 
@@ -45,9 +45,14 @@ namespace raft_dotnet.Tcp
 
         private void SendMessage(string destination, RaftMessage message)
         {
+            if (destination == null)
+            {
+                throw new ArgumentNullException(nameof(destination));
+            }
+
             Task.Run(async () =>
             {
-                //Log.Information("Sending {@Message} to {Destination}", message, destination);
+                Log.Verbose("Sending {@Message} to {Destination}", message, destination);
                 var client = _clients.GetOrAdd(destination, s => new TcpClient());
                 if (!client.Connected)
                 {
@@ -114,11 +119,8 @@ namespace raft_dotnet.Tcp
                 while (client.Connected)
                 {
                     var request = Serializer.DeserializeWithLengthPrefix<MessageWrapper>(stream, PrefixStyle.Base128);
-                    Log.Information("Message recieved {@Message}", request.Message);
-                    OnMessage(new RaftMessageEventArgs
-                    {
-                        Message = request.Message
-                    });
+                    Log.Verbose("Message recieved {@Message}", request.Message);
+                    OnMessage(new RaftMessageEventArgs {Message = request.Message});
                 }
             }
         }

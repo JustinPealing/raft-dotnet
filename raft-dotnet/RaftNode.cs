@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using raft_dotnet.Communication;
 using Serilog;
 
@@ -15,6 +14,8 @@ namespace raft_dotnet
     
     public class RaftNode
     {
+        private static readonly Random Rnd = new Random();
+        
         private readonly string[] _nodes;
         public NodeState State { get; private set; }
 
@@ -29,14 +30,19 @@ namespace raft_dotnet
         private int _commitIndex = 0;
         private int _lastApplied = 0;
 
-        public string NodeName { get; set; }
+        public string NodeName { get; }
 
         public IRaftCommunication Communication { get; }
 
-        public RaftNode(IRaftCommunication communication, string[] nodes)
+        public int MinEllectionTimeoutMs { get; set; } = 150;
+
+        public int MaxEllectionTimeoutMs { get; set; } = 300;
+
+        public RaftNode(IRaftCommunication communication, string[] nodes, string nodeName)
         {
             Communication = communication;
             _nodes = nodes;
+            NodeName = nodeName;
             _electionTimeout.TimeoutReached += (sender, args) => BeginElection();
             _appendEntriesTimeout.TimeoutReached += (sender, args) => SendAppendEntries();
             Communication.Message += OnMessage;
@@ -85,7 +91,7 @@ namespace raft_dotnet
         /// </summary>
         private void BeginElection()
         {
-            Log.Information("Begin Election");
+            Log.Information("Begin Election on");
 
             _currentTermVotes = 0;
             RecordVote();
@@ -134,7 +140,7 @@ namespace raft_dotnet
 
         public void Start()
         {
-            _electionTimeout.Reset();
+            ResetElectionTimeout();
         }
 
         public RequestVoteResult RequestVote(RequestVoteArguments arguments)
@@ -146,10 +152,10 @@ namespace raft_dotnet
             }
             if (arguments.Term == _currentTerm)
             {
-                _electionTimeout.Reset();
+                ResetElectionTimeout();
                 if (_votedFor == null)
                 {
-                    Log.Information("RequestVode from {CandidateId}, Voted yes", arguments.CandidateId);
+                    Log.Information("RequestVote from {CandidateId}, Voted yes", arguments.CandidateId);
                     _votedFor = arguments.CandidateId;
                     return new RequestVoteResult
                     {
@@ -159,7 +165,7 @@ namespace raft_dotnet
                 }
             }
 
-            Log.Information("RequestVode from {CandidateId}, Voted no", arguments.CandidateId);
+            Log.Information("RequestVote from {CandidateId}, Voted no", arguments.CandidateId);
             return new RequestVoteResult
             {
                 Term = _currentTerm,
@@ -167,10 +173,15 @@ namespace raft_dotnet
             };
         }
 
+        private void ResetElectionTimeout()
+        {
+            var timeout = Rnd.Next(MinEllectionTimeoutMs, MaxEllectionTimeoutMs);
+            _electionTimeout.Reset(TimeSpan.FromMilliseconds(timeout));
+        }
+
         public AppendEntriesResult AppendEntries(AppendEntriesArguments arguments)
         {
-            Log.Information("Recieved AppendEntriesAsync from {LeaderId}", arguments.LeaderId);
-
+            Log.Verbose("Recieved AppendEntriesAsync from {LeaderId}", arguments.LeaderId);
             if (arguments.Term > _currentTerm)
             {
                 _currentTerm = arguments.Term;
@@ -178,7 +189,7 @@ namespace raft_dotnet
             }
             if (arguments.Term == _currentTerm)
             {
-                _electionTimeout.Reset();
+                ResetElectionTimeout();
                 // TODO: Implement me
             }
             return new AppendEntriesResult

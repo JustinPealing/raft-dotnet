@@ -24,9 +24,9 @@ namespace raft_dotnet.Tests
 
             _nodes = new[]
             {
-                new RaftNode(_communication.CreateCommunication(), nodes) {NodeName = "localhost:13000"},
-                new RaftNode(_communication.CreateCommunication(), nodes) {NodeName = "localhost:13001"},
-                new RaftNode(_communication.CreateCommunication(), nodes) {NodeName = "localhost:13002"}
+                new RaftNode(_communication.CreateCommunication(), nodes, "localhost:13000"),
+                new RaftNode(_communication.CreateCommunication(), nodes, "localhost:13001"),
+                new RaftNode(_communication.CreateCommunication(), nodes, "localhost:13002")
             };
             _communication.Nodes = _nodes;
         }

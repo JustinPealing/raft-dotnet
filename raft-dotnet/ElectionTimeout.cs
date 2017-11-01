@@ -9,8 +9,6 @@ namespace raft_dotnet
     /// </summary>
     public sealed class ElectionTimeout : IDisposable
     {
-        private static readonly Random Rnd = new Random();
-
         private bool _running;
         private TimeSpan _timeout;
         private DateTime _lastReset;
@@ -19,16 +17,7 @@ namespace raft_dotnet
         /// Raised when the election timeout is reached before <see cref="Reset" /> is called.
         /// </summary>
         public event EventHandler<EventArgs> TimeoutReached;
-
-        /// <summary>
-        /// Resets the timeout to a random interval between 150 and 300ms
-        /// </summary>
-        public void Reset()
-        {
-            var timeout = Rnd.Next(150, 300);
-            Reset(TimeSpan.FromMilliseconds(timeout));
-        }
-
+        
         /// <summary>
         /// Resets the timeout and sets the timeout for the next delay to the supplied value.
         /// </summary>

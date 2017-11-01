@@ -10,6 +10,7 @@ namespace ConsoleApp3
         static void Main(string[] args)
         {
             Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
                 .WriteTo.ColoredConsole()
                 .CreateLogger();
 
@@ -26,7 +27,11 @@ namespace ConsoleApp3
             {
                 communication.Start();
 
-                var node = new RaftNode(communication, nodes);
+                var node = new RaftNode(communication, nodes, nodes[index])
+                {
+                    MinEllectionTimeout = TimeSpan.FromMilliseconds(1500),
+                    MaxEllectionTimeout = TimeSpan.FromMilliseconds(3000)
+                };
                 node.Start();
                 Console.ReadLine();
             }
