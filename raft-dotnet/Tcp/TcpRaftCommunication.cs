@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using ProtoBuf;
 using raft_dotnet.Communication;
+using Serilog;
 
 namespace raft_dotnet.Tcp
 {
@@ -93,14 +94,14 @@ namespace raft_dotnet.Tcp
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex);
+                Log.Error(ex, "Error in TCP client loop");
             }
-            Console.WriteLine("Client disconnected");
+            Log.Information("Client disconnected");
         }
 
         private async Task ClientLoopInner(TcpClient client)
         {
-            Console.WriteLine("Client connected");
+            Log.Information("Client connected");
             using (var stream = client.GetStream())
             {
                 while (client.Connected)

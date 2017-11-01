@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using raft_dotnet.Communication;
+using Serilog;
 
 namespace raft_dotnet
 {
@@ -84,7 +85,7 @@ namespace raft_dotnet
         /// </summary>
         private void BeginElection()
         {
-            Console.WriteLine($"{NodeName}: Begin Election");
+            Log.Information("Begin Election");
 
             _currentTermVotes = 0;
             RecordVote();
@@ -122,7 +123,7 @@ namespace raft_dotnet
             var majority = Math.Ceiling((_nodes.Length + 1) / 2.0);
             if (_currentTermVotes >= majority)
             {
-                Console.WriteLine($"{NodeName} - Recieved Majority {_currentTermVotes} of {majority}");
+                Log.Information("Recieved Majority {_currentTermVotes} of {majority}", _currentTermVotes, majority);
                 _currentTerm++;
                 State = NodeState.Leader;
                 _electionTimeout.Dispose();
@@ -148,7 +149,7 @@ namespace raft_dotnet
                 _electionTimeout.Reset();
                 if (_votedFor == null)
                 {
-                    Console.WriteLine($"{NodeName}: RequestVode from {arguments.CandidateId}, Voted yes");
+                    Log.Information("RequestVode from {CandidateId}, Voted yes", arguments.CandidateId);
                     _votedFor = arguments.CandidateId;
                     return new RequestVoteResult
                     {
@@ -158,7 +159,7 @@ namespace raft_dotnet
                 }
             }
 
-            Console.WriteLine($"{NodeName}: RequestVode from {arguments.CandidateId}, Voted no");
+            Log.Information("RequestVode from {CandidateId}, Voted no", arguments.CandidateId);
             return new RequestVoteResult
             {
                 Term = _currentTerm,
@@ -168,7 +169,7 @@ namespace raft_dotnet
 
         public AppendEntriesResult AppendEntries(AppendEntriesArguments arguments)
         {
-            Console.WriteLine($"{NodeName}: Recieved AppendEntriesAsync from {arguments.LeaderId}");
+            Log.Information("Recieved AppendEntriesAsync from {LeaderId}", arguments.LeaderId);
 
             if (arguments.Term > _currentTerm)
             {

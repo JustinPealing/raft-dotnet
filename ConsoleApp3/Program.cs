@@ -1,6 +1,7 @@
 ﻿using System;
 using raft_dotnet;
 using raft_dotnet.Tcp;
+using Serilog;
 
 namespace ConsoleApp3
 {
@@ -8,6 +9,10 @@ namespace ConsoleApp3
     {
         static void Main(string[] args)
         {
+            Log.Logger = new LoggerConfiguration()
+                .WriteTo.ColoredConsole()
+                .CreateLogger();
+
             var nodes = new[]
             {
                 "localhost:13000",
