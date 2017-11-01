@@ -6,10 +6,11 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using ProtoBuf;
+using raft_dotnet.Communication;
 
 namespace raft_dotnet.Tcp
 {
-    public class TcpRaftClient : IRaftRpcClient
+    public class TcpRaftClient
     {
         private readonly int _port;
         private readonly TcpClient _client;

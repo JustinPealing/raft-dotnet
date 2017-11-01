@@ -9,40 +9,26 @@ namespace raft_dotnet.Tests
     public class InMemoryTests
     {
         private RaftNode[] _nodes;
+        private InMemoryCommunication _communication;
 
         [TestInitialize]
         public void TestInitializer()
         {
-            var node1 = new RaftNode(new IRaftRpcClient[]
+            _communication = new InMemoryCommunication();
+            var nodes = new[]
             {
-                new FakeRaftRpcClient(),
-                new FakeRaftRpcClient()
-            }) {NodeName = "Node1"};
+                "localhost:13000",
+                "localhost:13001",
+                "localhost:13002"
+            };
 
-            var node2 = new RaftNode(new IRaftRpcClient[]
-                {
-                    new FakeRaftRpcClient(),
-                    new FakeRaftRpcClient()
-                })
-                {NodeName = "Node2"};
-
-            var node3 = new RaftNode(new IRaftRpcClient[]
-                {
-                    new FakeRaftRpcClient(),
-                    new FakeRaftRpcClient()
-                })
-                {NodeName = "Node3"};
-
-            ((FakeRaftRpcClient) node1.Others[0]).Remote = node2;
-            ((FakeRaftRpcClient) node1.Others[1]).Remote = node3;
-
-            ((FakeRaftRpcClient) node2.Others[0]).Remote = node1;
-            ((FakeRaftRpcClient) node2.Others[1]).Remote = node3;
-
-            ((FakeRaftRpcClient) node3.Others[0]).Remote = node1;
-            ((FakeRaftRpcClient) node3.Others[1]).Remote = node2;
-
-            _nodes = new[] {node1, node2, node3};
+            _nodes = new[]
+            {
+                new RaftNode(_communication.CreateCommunication(), nodes) {NodeName = "localhost:13000"},
+                new RaftNode(_communication.CreateCommunication(), nodes) {NodeName = "localhost:13001"},
+                new RaftNode(_communication.CreateCommunication(), nodes) {NodeName = "localhost:13002"}
+            };
+            _communication.Nodes = _nodes;
         }
 
         [TestMethod]

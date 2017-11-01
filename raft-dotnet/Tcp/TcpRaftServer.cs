@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using ProtoBuf;
+using raft_dotnet.Communication;
 
 namespace raft_dotnet.Tcp
 {
@@ -56,7 +57,7 @@ namespace raft_dotnet.Tcp
                     var request = Serializer.Deserialize<Request>(stream);
                     if (request.Arguments is RequestVoteArguments)
                     {
-                        var result = await _node.RequestVoteAsync((RequestVoteArguments)request.Arguments);
+                        var result = _node.RequestVote((RequestVoteArguments)request.Arguments);
                         Serializer.Serialize(stream, new Response
                         {
                             Result = result,
@@ -65,7 +66,7 @@ namespace raft_dotnet.Tcp
                     }
                     if (request.Arguments is AppendEntriesArguments)
                     {
-                        var result = await _node.AppendEntriesAsync((AppendEntriesArguments)request.Arguments);
+                        var result = _node.AppendEntries((AppendEntriesArguments)request.Arguments);
                         Serializer.Serialize(stream, new Response
                         {
                             Result = result,

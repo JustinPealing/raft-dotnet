@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using raft_dotnet;
 using raft_dotnet.Tcp;
 
@@ -10,23 +8,22 @@ namespace ConsoleApp3
     {
         static void Main(string[] args)
         {
-            var ports = new List<int>
+            var nodes = new[]
             {
-                13000,
-                13001,
-                13002
+                "localhost:13000",
+                "localhost:13001",
+                "localhost:13002"
             };
+
             var index = int.Parse(args[0]);
-            var port = ports[index];
-            ports.RemoveAt(index);
+            using (var communication = new TcpRaftCommunication(nodes[index]))
+            {
+                communication.Start();
 
-            var node = new RaftNode(ports.Select(p => new TcpRaftClient(port)).ToArray());
-            node.Start();
-
-            var server = new TcpRaftServer(node);
-            server.Start();
-
-            Console.ReadLine();
+                var node = new RaftNode(communication, nodes);
+                node.Start();
+                Console.ReadLine();
+            }
         }
     }
 }

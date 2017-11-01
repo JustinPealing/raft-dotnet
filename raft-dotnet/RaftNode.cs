@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using raft_dotnet;
+using raft_dotnet.Communication;
 
 namespace raft_dotnet
 {
@@ -14,8 +14,7 @@ namespace raft_dotnet
     
     public class RaftNode
     {
-        public IRaftRpcClient[] Others { get; }
-        
+        private readonly string[] _nodes;
         public NodeState State { get; private set; }
 
         private readonly ElectionTimeout _electionTimeout = new ElectionTimeout();
@@ -31,23 +30,47 @@ namespace raft_dotnet
 
         public string NodeName { get; set; }
 
-        public RaftNode(IRaftRpcClient[] others)
+        public IRaftCommunication Communication { get; }
+
+        public RaftNode(IRaftCommunication communication, string[] nodes)
         {
+            Communication = communication;
+            _nodes = nodes;
             _electionTimeout.TimeoutReached += (sender, args) => BeginElection();
             _appendEntriesTimeout.TimeoutReached += (sender, args) => SendAppendEntries();
-            Others = others;
+            Communication.Message += OnMessage;
+        }
+
+        private void OnMessage(object sender, RaftMessageEventArgs message)
+        {
+            if (message.Message is RequestVoteArguments requestVoteArguments)
+            {
+                Communication.SendRequestVoteResult(requestVoteArguments.CandidateId, RequestVote(requestVoteArguments));
+            }
+            if (message.Message is RequestVoteResult requestVoteResult)
+            {
+                RequestVoteResponse(requestVoteResult);
+            }
+            if (message.Message is AppendEntriesArguments appendEntriesArguments)
+            {
+                Communication.SendAppendEntriesResult(appendEntriesArguments.LeaderId, AppendEntries(appendEntriesArguments));
+            }
+            if (message.Message is AppendEntriesResult appendEntriesResult)
+            {
+                AppendEntriesResponse(appendEntriesResult);
+            }
         }
 
         private void SendAppendEntries()
         {
-            foreach (var node in Others)
+            foreach (var node in _nodes)
             {
                 var request = new AppendEntriesArguments
                 {
                     Term = _currentTerm,
                     LeaderId = NodeName
                 };
-                node.AppendEntriesAsync(request).ContinueWith(task => { AppendEntriesResponse(task.Result); });
+                Communication.SendAppendEntries(node, request);
             }
         }
 
@@ -66,14 +89,14 @@ namespace raft_dotnet
             _currentTermVotes = 0;
             RecordVote();
             _votedFor = NodeName;
-            foreach (var node in Others)
+            foreach (var node in _nodes)
             {
                 var request = new RequestVoteArguments
                 {
                     CandidateId = NodeName,
                     Term = _currentTerm
                 };
-                node.RequestVoteAsync(request).ContinueWith(task => { RequestVoteResponse(task.Result); });
+                Communication.SendRequestVote(node, request);
             }
         }
 
@@ -96,7 +119,7 @@ namespace raft_dotnet
         private void RecordVote()
         {
             _currentTermVotes++;
-            var majority = Math.Ceiling((Others.Length + 1) / 2.0);
+            var majority = Math.Ceiling((_nodes.Length + 1) / 2.0);
             if (_currentTermVotes >= majority)
             {
                 Console.WriteLine($"{NodeName} - Recieved Majority {_currentTermVotes} of {majority}");
@@ -113,7 +136,7 @@ namespace raft_dotnet
             _electionTimeout.Reset();
         }
 
-        public async Task<RequestVoteResult> RequestVoteAsync(RequestVoteArguments arguments)
+        public RequestVoteResult RequestVote(RequestVoteArguments arguments)
         {
             if (arguments.Term > _currentTerm)
             {
@@ -143,7 +166,7 @@ namespace raft_dotnet
             };
         }
 
-        public async Task<AppendEntriesResult> AppendEntriesAsync(AppendEntriesArguments arguments)
+        public AppendEntriesResult AppendEntries(AppendEntriesArguments arguments)
         {
             Console.WriteLine($"{NodeName}: Recieved AppendEntriesAsync from {arguments.LeaderId}");
 

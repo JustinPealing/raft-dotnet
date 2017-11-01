@@ -1,4 +1,4 @@
-﻿namespace raft_dotnet
+﻿namespace raft_dotnet.Communication
 {
     public class AppendEntriesResult : RaftMessage
     {
