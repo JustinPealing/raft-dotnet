@@ -21,7 +21,7 @@ namespace raft_dotnet.Tcp
             _listenAddress = listenAddress;
         }
 
-        public event EventHandler<RaftMessageEventArgs> Message;
+        public IRaftRpc Server { get; set; }
 
         public async Task<AppendEntriesResult> AppendEntriesAsync(string destination, AppendEntriesArguments message)
         {
@@ -53,34 +53,6 @@ namespace raft_dotnet.Tcp
             await stream.WriteAsync(data, 0, data.Length);
 
             return Serializer.DeserializeWithLengthPrefix<MessageWrapper>(stream, PrefixStyle.Base128);
-        }
-
-        private void SendMessage(string destination, RaftMessage message)
-        {
-            if (destination == null)
-            {
-                throw new ArgumentNullException(nameof(destination));
-            }
-
-            Task.Run(async () =>
-            {
-                Log.Verbose("Sending {@Message} to {Destination}", message, destination);
-                var client = _clients.GetOrAdd(destination, s => new TcpClient());
-                if (!client.Connected)
-                {
-                    var port = int.Parse(destination.Split(":")[1]);
-                    await client.ConnectAsync("localhost", port);
-                }
-                
-                var data = Serialize(message);
-                await client.GetStream().WriteAsync(data, 0, data.Length);
-            }).ContinueWith(task =>
-            {
-                if (task.Exception != null)
-                {
-                    Log.Verbose(task.Exception, "Error sending message: {Message}");
-                }
-            });
         }
         
         private static byte[] Serialize(RaftMessage arguments)
@@ -139,7 +111,7 @@ namespace raft_dotnet.Tcp
             Log.Information("Client disconnected");
         }
 
-        private void ClientLoopInner(TcpClient client)
+        private async Task ClientLoopInner(TcpClient client)
         {
             using (var stream = client.GetStream())
             {
@@ -147,7 +119,19 @@ namespace raft_dotnet.Tcp
                 {
                     var request = Serializer.DeserializeWithLengthPrefix<MessageWrapper>(stream, PrefixStyle.Base128);
                     Log.Verbose("Message recieved {@Message}", request.Message);
-                    OnMessage(new RaftMessageEventArgs {Message = request.Message});
+
+                    if (request.Message is RequestVoteArguments requestVote)
+                    {
+                        var result = await Server.RequestVoteAsync(requestVote);
+                        var data = Serialize(result);
+                        await stream.WriteAsync(data, 0, data.Length);
+                    }
+                    if (request.Message is AppendEntriesArguments appendEntries)
+                    {
+                        var result = await Server.AppendEntriesAsync(appendEntries);
+                        var data = Serialize(result);
+                        await stream.WriteAsync(data, 0, data.Length);
+                    }
                 }
             }
         }
@@ -155,11 +139,6 @@ namespace raft_dotnet.Tcp
         public void Dispose()
         {
             _listener.Server.Dispose();
-        }
-
-        protected virtual void OnMessage(RaftMessageEventArgs e)
-        {
-            Message?.Invoke(this, e);
         }
     }
 }

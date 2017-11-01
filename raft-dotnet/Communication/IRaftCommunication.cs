@@ -1,11 +1,10 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace raft_dotnet.Communication
 {
     public interface IRaftCommunication
     {
-        event EventHandler<RaftMessageEventArgs> Message;
+        IRaftRpc Server { get; set; }
         Task<AppendEntriesResult> AppendEntriesAsync(string destination, AppendEntriesArguments message);
         Task<RequestVoteResult> RequestVoteAsync(string destination, RequestVoteArguments message);
     }

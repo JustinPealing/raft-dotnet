@@ -49,30 +49,10 @@ namespace raft_dotnet
             NodeName = nodeName;
             _electionTimeout.TimeoutReached += (sender, args) => BeginElection();
             _appendEntriesTimeout.TimeoutReached += (sender, args) => SendAppendEntries();
-            Communication.Message += OnMessage;
         }
 
         public IEnumerable<string> OtherNodes => _nodes.Where(n => n != NodeName);
-
-        private void OnMessage(object sender, RaftMessageEventArgs message)
-        {
-            Task.Run(() =>
-            {
-                if (message.Message is RequestVoteArguments requestVoteArguments)
-                {
-                    message.Response = RequestVote(requestVoteArguments);
-                }
-                if (message.Message is RequestVoteResult requestVoteResult)
-                {
-                    RequestVoteResponse(requestVoteResult);
-                }
-                if (message.Message is AppendEntriesArguments appendEntriesArguments)
-                {
-                    message.Response = AppendEntries(appendEntriesArguments);
-                }
-            });
-        }
-
+        
         private void SendAppendEntries()
         {
             foreach (var node in OtherNodes)
