@@ -66,7 +66,7 @@ namespace raft_dotnet.Tcp
             {
                 if (task.Exception != null)
                 {
-                    Log.Warning(task.Exception, "Error sending message");
+                    Log.Verbose(task.Exception, "Error sending message: {Message}");
                 }
             });
         }
@@ -105,9 +105,24 @@ namespace raft_dotnet.Tcp
                 Log.Information("Client connected");
                 ClientLoopInner(client);
             }
+            catch (IOException ex)
+            {
+                if (ex.InnerException is SocketException socketException)
+                {
+                    Log.Warning("SocketException: {Errorcode}", socketException.SocketErrorCode);
+                }
+                else
+                {
+                    Log.Error(ex, "Unhandled error in TCP server loop");
+                }
+            }
+            catch (SocketException ex)
+            {
+                Log.Warning("SocketException: {Errorcode}", ex.SocketErrorCode);
+            }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error in TCP client loop");
+                Log.Error(ex, "Unhandled error in TCP server loop");
             }
             Log.Information("Client disconnected");
         }
