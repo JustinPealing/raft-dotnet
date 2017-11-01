@@ -23,9 +23,9 @@ namespace raft_dotnet.Tcp
 
         public event EventHandler<RaftMessageEventArgs> Message;
 
-        public void SendAppendEntries(string destination, AppendEntriesArguments message)
+        public async Task<AppendEntriesResult> AppendEntriesAsync(string destination, AppendEntriesArguments message)
         {
-            SendMessage(destination, message);
+            return (AppendEntriesResult)await SendMessageAsync(destination, message);
         }
 
         public void SendAppendEntriesResult(string destination, AppendEntriesResult message)
@@ -41,6 +41,28 @@ namespace raft_dotnet.Tcp
         public void SendRequestVoteResult(string destination, RequestVoteResult message)
         {
             SendMessage(destination, message);
+        }
+
+        private async Task<object> SendMessageAsync(string destination, RaftMessage message)
+        {
+            if (destination == null)
+            {
+                throw new ArgumentNullException(nameof(destination));
+            }
+            
+            Log.Verbose("Sending {@Message} to {Destination}", message, destination);
+            var client = _clients.GetOrAdd(destination, s => new TcpClient());
+            if (!client.Connected)
+            {
+                var port = int.Parse(destination.Split(":")[1]);
+                await client.ConnectAsync("localhost", port);
+            }
+
+            var data = Serialize(message);
+            var stream = client.GetStream();
+            await stream.WriteAsync(data, 0, data.Length);
+
+            return Serializer.DeserializeWithLengthPrefix<MessageWrapper>(stream, PrefixStyle.Base128);
         }
 
         private void SendMessage(string destination, RaftMessage message)

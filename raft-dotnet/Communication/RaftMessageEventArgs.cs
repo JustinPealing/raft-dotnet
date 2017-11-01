@@ -3,5 +3,6 @@
     public class RaftMessageEventArgs
     {
         public RaftMessage Message { get; set; }
+        public RaftMessage Response { get; set; }
     }
 }

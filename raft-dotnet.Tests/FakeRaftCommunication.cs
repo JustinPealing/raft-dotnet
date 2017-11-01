@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using raft_dotnet.Communication;
 
 namespace raft_dotnet.Tests
@@ -13,13 +14,15 @@ namespace raft_dotnet.Tests
         }
 
         public event EventHandler<RaftMessageEventArgs> Message;
-
-        public void SendAppendEntries(string destination, AppendEntriesArguments message)
+        
+        public async Task<AppendEntriesResult> AppendEntriesAsync(string destination, AppendEntriesArguments message)
         {
             var communication = _communication.GetCommunication(destination);
-            communication.OnMessage(new RaftMessageEventArgs {Message = message});
+            var args = new RaftMessageEventArgs {Message = message};
+            communication.OnMessage(args);
+            return (AppendEntriesResult)args.Response;
         }
-        
+
         public void SendAppendEntriesResult(string destination, AppendEntriesResult message)
         {
             var communication = _communication.GetCommunication(destination);

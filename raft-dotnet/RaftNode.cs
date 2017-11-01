@@ -70,37 +70,27 @@ namespace raft_dotnet
                 {
                     Communication.SendAppendEntriesResult(appendEntriesArguments.LeaderId, AppendEntries(appendEntriesArguments));
                 }
-                if (message.Message is AppendEntriesResult appendEntriesResult)
-                {
-                    AppendEntriesResponse(appendEntriesResult);
-                }
             });
         }
 
         private void SendAppendEntries()
         {
-            lock (_lock)
+            foreach (var node in OtherNodes)
             {
-                foreach (var node in OtherNodes)
-                {
-                    var request = new AppendEntriesArguments
-                    {
-                        Term = _currentTerm,
-                        LeaderId = NodeName
-                    };
-                    Communication.SendAppendEntries(node, request);
-                }
+                AppendEntries(node);
             }
         }
 
-        private void AppendEntriesResponse(AppendEntriesResult result)
+        private async Task AppendEntries(string node)
         {
-            lock (_lock)
+            var request = new AppendEntriesArguments
             {
-                // TODO Implement me
-            }
+                Term = _currentTerm,
+                LeaderId = NodeName
+            };
+            var result = await Communication.AppendEntriesAsync(node, request);
         }
-
+        
         /// <summary>
         /// Called when the election timeout is reached.
         /// </summary>
