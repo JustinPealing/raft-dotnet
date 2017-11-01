@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using raft_dotnet.Communication;
 using Serilog;
@@ -51,6 +52,8 @@ namespace raft_dotnet
             Communication.Message += OnMessage;
         }
 
+        public IEnumerable<string> OtherNodes => _nodes.Where(n => n != NodeName);
+
         private void OnMessage(object sender, RaftMessageEventArgs message)
         {
             Task.Run(() =>
@@ -78,7 +81,7 @@ namespace raft_dotnet
         {
             lock (_lock)
             {
-                foreach (var node in _nodes)
+                foreach (var node in OtherNodes)
                 {
                     var request = new AppendEntriesArguments
                     {
@@ -111,7 +114,7 @@ namespace raft_dotnet
                 _currentTermVotes = 0;
                 RecordVote();
                 _votedFor = NodeName;
-                foreach (var node in _nodes)
+                foreach (var node in OtherNodes)
                 {
                     var request = new RequestVoteArguments
                     {
@@ -129,11 +132,14 @@ namespace raft_dotnet
             {
                 if (result.Term > _currentTerm)
                 {
+                    Log.Information("Term {Term} is greater than my term {CurrentTerm}, resetting to follower.", result.Term, _currentTerm);
                     _currentTerm = result.Term;
+                    _votedFor = null;
                     State = NodeState.Follower;
                 }
-                if (result.Term == _currentTerm)
+                else if (result.Term == _currentTerm && State == NodeState.Candidate)
                 {
+                    Log.Information("Recieved vote {Vote} in term {Term}", result.VoteGranted, result.Term);
                     if (result.VoteGranted)
                     {
                         RecordVote();
@@ -148,7 +154,7 @@ namespace raft_dotnet
             var majority = Math.Ceiling((_nodes.Length + 1) / 2.0);
             if (_currentTermVotes >= majority)
             {
-                Log.Information("Recieved Majority {_currentTermVotes} in term", _currentTermVotes, _currentTerm);
+                Log.Information("Recieved Majority {_currentTermVotes} in term {Term}", _currentTermVotes, _currentTerm);
                 State = NodeState.Leader;
                 _electionTimeout.Dispose();
                 _appendEntriesTimeout.Reset(TimeSpan.FromMilliseconds(50));
@@ -210,6 +216,13 @@ namespace raft_dotnet
                 if (arguments.Term > _currentTerm)
                 {
                     Log.Information("Term {Term} is greater than my term {CurrentTerm}, resetting to follower. Leader: {LeaderId}", arguments.Term, _currentTerm, arguments.LeaderId);
+                    _currentTerm = arguments.Term;
+                    _votedFor = null;
+                    State = NodeState.Follower;
+                }
+                if (arguments.Term == _currentTerm && State == NodeState.Candidate)
+                {
+                    Log.Information("Term {Term} equals my term {CurrentTerm}, resetting to follower. Leader: {LeaderId}", arguments.Term, _currentTerm, arguments.LeaderId);
                     _currentTerm = arguments.Term;
                     _votedFor = null;
                     State = NodeState.Follower;
