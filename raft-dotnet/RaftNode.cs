@@ -60,7 +60,7 @@ namespace raft_dotnet
             {
                 if (message.Message is RequestVoteArguments requestVoteArguments)
                 {
-                    Communication.SendRequestVoteResult(requestVoteArguments.CandidateId, RequestVote(requestVoteArguments));
+                    message.Response = RequestVote(requestVoteArguments);
                 }
                 if (message.Message is RequestVoteResult requestVoteResult)
                 {
@@ -111,7 +111,7 @@ namespace raft_dotnet
                         CandidateId = NodeName,
                         Term = _currentTerm
                     };
-                    Communication.SendRequestVote(node, request);
+                    Communication.RequestVoteAsync(node, request);
                 }
             }
         }

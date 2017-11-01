@@ -23,18 +23,14 @@ namespace raft_dotnet.Tests
             return (AppendEntriesResult)args.Response;
         }
         
-        public void SendRequestVote(string destination, RequestVoteArguments message)
+        public async Task<RequestVoteResult> RequestVoteAsync(string destination, RequestVoteArguments message)
         {
             var communication = _communication.GetCommunication(destination);
-            communication.OnMessage(new RaftMessageEventArgs { Message = message });
+            var args = new RaftMessageEventArgs { Message = message };
+            communication.OnMessage(args);
+            return (RequestVoteResult)args.Response;
         }
-
-        public void SendRequestVoteResult(string destination, RequestVoteResult message)
-        {
-            var communication = _communication.GetCommunication(destination);
-            communication.OnMessage(new RaftMessageEventArgs { Message = message });
-        }
-
+        
         public void OnMessage(RaftMessageEventArgs args)
         {
             Message?.Invoke(this, args);

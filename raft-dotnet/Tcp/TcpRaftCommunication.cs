@@ -28,16 +28,11 @@ namespace raft_dotnet.Tcp
             return (AppendEntriesResult)await SendMessageAsync(destination, message);
         }
         
-        public void SendRequestVote(string destination, RequestVoteArguments message)
+        public async Task<RequestVoteResult> RequestVoteAsync(string destination, RequestVoteArguments message)
         {
-            SendMessage(destination, message);
+            return (RequestVoteResult) await SendMessageAsync(destination, message);
         }
-
-        public void SendRequestVoteResult(string destination, RequestVoteResult message)
-        {
-            SendMessage(destination, message);
-        }
-
+        
         private async Task<object> SendMessageAsync(string destination, RaftMessage message)
         {
             if (destination == null)

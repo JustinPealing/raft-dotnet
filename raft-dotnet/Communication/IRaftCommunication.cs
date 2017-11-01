@@ -7,7 +7,6 @@ namespace raft_dotnet.Communication
     {
         event EventHandler<RaftMessageEventArgs> Message;
         Task<AppendEntriesResult> AppendEntriesAsync(string destination, AppendEntriesArguments message);
-        void SendRequestVote(string destination, RequestVoteArguments message);
-        void SendRequestVoteResult(string destination, RequestVoteResult message);
+        Task<RequestVoteResult> RequestVoteAsync(string destination, RequestVoteArguments message);
     }
 }
