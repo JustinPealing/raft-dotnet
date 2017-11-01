@@ -58,11 +58,11 @@ namespace raft_dotnet.Tcp
             });
         }
         
-        private static byte[] Serialize(object arguments)
+        private static byte[] Serialize(RaftMessage arguments)
         {
             using (var memoryStream = new MemoryStream())
             {
-                Serializer.Serialize(memoryStream, arguments);
+                Serializer.Serialize(memoryStream, new MessageWrapper {Message = arguments});
                 return memoryStream.ToArray();
             }
         }
@@ -105,10 +105,10 @@ namespace raft_dotnet.Tcp
             {
                 while (client.Connected)
                 {
-                    var request = Serializer.Deserialize<RaftMessage>(stream);
+                    var request = Serializer.Deserialize<MessageWrapper>(stream);
                     OnMessage(new RaftMessageEventArgs
                     {
-                        Message = request
+                        Message = request.Message
                     });
                 }
             }
