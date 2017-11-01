@@ -27,12 +27,7 @@ namespace raft_dotnet.Tcp
         {
             return (AppendEntriesResult)await SendMessageAsync(destination, message);
         }
-
-        public void SendAppendEntriesResult(string destination, AppendEntriesResult message)
-        {
-            SendMessage(destination, message);
-        }
-
+        
         public void SendRequestVote(string destination, RequestVoteArguments message)
         {
             SendMessage(destination, message);

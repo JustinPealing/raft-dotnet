@@ -22,13 +22,7 @@ namespace raft_dotnet.Tests
             communication.OnMessage(args);
             return (AppendEntriesResult)args.Response;
         }
-
-        public void SendAppendEntriesResult(string destination, AppendEntriesResult message)
-        {
-            var communication = _communication.GetCommunication(destination);
-            communication.OnMessage(new RaftMessageEventArgs { Message = message });
-        }
-
+        
         public void SendRequestVote(string destination, RequestVoteArguments message)
         {
             var communication = _communication.GetCommunication(destination);

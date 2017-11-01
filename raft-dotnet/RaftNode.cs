@@ -68,7 +68,7 @@ namespace raft_dotnet
                 }
                 if (message.Message is AppendEntriesArguments appendEntriesArguments)
                 {
-                    Communication.SendAppendEntriesResult(appendEntriesArguments.LeaderId, AppendEntries(appendEntriesArguments));
+                    message.Response = AppendEntries(appendEntriesArguments);
                 }
             });
         }
