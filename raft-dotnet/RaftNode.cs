@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using raft_dotnet.Communication;
 using Serilog;
 
@@ -14,10 +15,10 @@ namespace raft_dotnet
     
     public class RaftNode
     {
-        private static readonly Random Rnd = new Random();
+        private readonly Random Rnd = new Random();
         
         private readonly object _lock = new object();
-
+        
         private readonly string[] _nodes;
         public NodeState State { get; private set; }
 
@@ -52,22 +53,25 @@ namespace raft_dotnet
 
         private void OnMessage(object sender, RaftMessageEventArgs message)
         {
-            if (message.Message is RequestVoteArguments requestVoteArguments)
+            Task.Run(() =>
             {
-                Communication.SendRequestVoteResult(requestVoteArguments.CandidateId, RequestVote(requestVoteArguments));
-            }
-            if (message.Message is RequestVoteResult requestVoteResult)
-            {
-                RequestVoteResponse(requestVoteResult);
-            }
-            if (message.Message is AppendEntriesArguments appendEntriesArguments)
-            {
-                Communication.SendAppendEntriesResult(appendEntriesArguments.LeaderId, AppendEntries(appendEntriesArguments));
-            }
-            if (message.Message is AppendEntriesResult appendEntriesResult)
-            {
-                AppendEntriesResponse(appendEntriesResult);
-            }
+                if (message.Message is RequestVoteArguments requestVoteArguments)
+                {
+                    Communication.SendRequestVoteResult(requestVoteArguments.CandidateId, RequestVote(requestVoteArguments));
+                }
+                if (message.Message is RequestVoteResult requestVoteResult)
+                {
+                    RequestVoteResponse(requestVoteResult);
+                }
+                if (message.Message is AppendEntriesArguments appendEntriesArguments)
+                {
+                    Communication.SendAppendEntriesResult(appendEntriesArguments.LeaderId, AppendEntries(appendEntriesArguments));
+                }
+                if (message.Message is AppendEntriesResult appendEntriesResult)
+                {
+                    AppendEntriesResponse(appendEntriesResult);
+                }
+            });
         }
 
         private void SendAppendEntries()
@@ -101,7 +105,8 @@ namespace raft_dotnet
         {
             lock (_lock)
             {
-                Log.Information("Begin Election");
+                _currentTerm++;
+                Log.Information("Begin Election, term {Term}", _currentTerm);
                 State = NodeState.Candidate;
                 _currentTermVotes = 0;
                 RecordVote();
@@ -143,8 +148,7 @@ namespace raft_dotnet
             var majority = Math.Ceiling((_nodes.Length + 1) / 2.0);
             if (_currentTermVotes >= majority)
             {
-                Log.Information("Recieved Majority {_currentTermVotes} of {majority}", _currentTermVotes, majority);
-                _currentTerm++;
+                Log.Information("Recieved Majority {_currentTermVotes} in term", _currentTermVotes, _currentTerm);
                 State = NodeState.Leader;
                 _electionTimeout.Dispose();
                 _appendEntriesTimeout.Reset(TimeSpan.FromMilliseconds(50));
@@ -163,7 +167,9 @@ namespace raft_dotnet
             {
                 if (arguments.Term > _currentTerm)
                 {
+                    Log.Information("Term {Term} is greater than my term {CurrentTerm}, resetting to follower. Candidate: {CandidateId}", arguments.Term, _currentTerm, arguments.CandidateId);
                     _currentTerm = arguments.Term;
+                    _votedFor = null;
                     State = NodeState.Follower;
                 }
                 if (arguments.Term == _currentTerm)
@@ -171,7 +177,7 @@ namespace raft_dotnet
                     ResetElectionTimeout();
                     if (_votedFor == null)
                     {
-                        Log.Information("RequestVote from {CandidateId}, Voted yes", arguments.CandidateId);
+                        Log.Information("Voted yes for {CandidateId} in term {Term}", arguments.CandidateId, arguments.Term);
                         _votedFor = arguments.CandidateId;
                         return new RequestVoteResult
                         {
@@ -181,7 +187,7 @@ namespace raft_dotnet
                     }
                 }
 
-                Log.Information("RequestVote from {CandidateId}, Voted no", arguments.CandidateId);
+                Log.Information("Voted no for {CandidateId} in term {Term}", arguments.CandidateId, arguments.Term);
                 return new RequestVoteResult
                 {
                     Term = _currentTerm,
@@ -203,7 +209,9 @@ namespace raft_dotnet
                 Log.Verbose("Recieved AppendEntriesAsync from {LeaderId}", arguments.LeaderId);
                 if (arguments.Term > _currentTerm)
                 {
+                    Log.Information("Term {Term} is greater than my term {CurrentTerm}, resetting to follower. Leader: {LeaderId}", arguments.Term, _currentTerm, arguments.LeaderId);
                     _currentTerm = arguments.Term;
+                    _votedFor = null;
                     State = NodeState.Follower;
                 }
                 if (arguments.Term == _currentTerm)
