@@ -14,7 +14,7 @@ namespace raft_dotnet
         Leader
     }
     
-    public class RaftNode
+    public class RaftNode : IRaftRpc
     {
         private readonly Random Rnd = new Random();
         
@@ -45,6 +45,7 @@ namespace raft_dotnet
         public RaftNode(IRaftCommunication communication, string[] nodes, string nodeName)
         {
             Communication = communication;
+            communication.Server = this;
             _nodes = nodes;
             NodeName = nodeName;
             _electionTimeout.TimeoutReached += (sender, args) => BeginElection();
@@ -136,68 +137,33 @@ namespace raft_dotnet
         {
             ResetElectionTimeout();
         }
-
-        public RequestVoteResult RequestVote(RequestVoteArguments arguments)
-        {
-            lock (_lock)
-            {
-                if (arguments.Term > _currentTerm)
-                {
-                    Log.Information("Term {Term} is greater than my term {CurrentTerm}, resetting to follower. Candidate: {CandidateId}", arguments.Term, _currentTerm, arguments.CandidateId);
-                    _currentTerm = arguments.Term;
-                    _votedFor = null;
-                    State = NodeState.Follower;
-                }
-                if (arguments.Term == _currentTerm)
-                {
-                    ResetElectionTimeout();
-                    if (_votedFor == null)
-                    {
-                        Log.Information("Voted yes for {CandidateId} in term {Term}", arguments.CandidateId, arguments.Term);
-                        _votedFor = arguments.CandidateId;
-                        return new RequestVoteResult
-                        {
-                            Term = _currentTerm,
-                            VoteGranted = true
-                        };
-                    }
-                }
-
-                Log.Information("Voted no for {CandidateId} in term {Term}", arguments.CandidateId, arguments.Term);
-                return new RequestVoteResult
-                {
-                    Term = _currentTerm,
-                    VoteGranted = false
-                };
-            }
-        }
-
+        
         private void ResetElectionTimeout()
         {
             var timeout = Rnd.Next(MinEllectionTimeoutMs, MaxEllectionTimeoutMs);
             _electionTimeout.Reset(TimeSpan.FromMilliseconds(timeout));
         }
-
-        public AppendEntriesResult AppendEntries(AppendEntriesArguments arguments)
+        
+        public async Task<AppendEntriesResult> AppendEntriesAsync(AppendEntriesArguments request)
         {
             lock (_lock)
             {
-                Log.Verbose("Recieved AppendEntriesAsync from {LeaderId}", arguments.LeaderId);
-                if (arguments.Term > _currentTerm)
+                Log.Verbose("Recieved AppendEntriesAsync from {LeaderId}", request.LeaderId);
+                if (request.Term > _currentTerm)
                 {
-                    Log.Information("Term {Term} is greater than my term {CurrentTerm}, resetting to follower. Leader: {LeaderId}", arguments.Term, _currentTerm, arguments.LeaderId);
-                    _currentTerm = arguments.Term;
+                    Log.Information("Term {Term} is greater than my term {CurrentTerm}, resetting to follower. Leader: {LeaderId}", request.Term, _currentTerm, request.LeaderId);
+                    _currentTerm = request.Term;
                     _votedFor = null;
                     State = NodeState.Follower;
                 }
-                if (arguments.Term == _currentTerm && State == NodeState.Candidate)
+                if (request.Term == _currentTerm && State == NodeState.Candidate)
                 {
-                    Log.Information("Term {Term} equals my term {CurrentTerm}, resetting to follower. Leader: {LeaderId}", arguments.Term, _currentTerm, arguments.LeaderId);
-                    _currentTerm = arguments.Term;
+                    Log.Information("Term {Term} equals my term {CurrentTerm}, resetting to follower. Leader: {LeaderId}", request.Term, _currentTerm, request.LeaderId);
+                    _currentTerm = request.Term;
                     _votedFor = null;
                     State = NodeState.Follower;
                 }
-                if (arguments.Term == _currentTerm)
+                if (request.Term == _currentTerm)
                 {
                     ResetElectionTimeout();
                     // TODO: Implement me
@@ -206,6 +172,41 @@ namespace raft_dotnet
                 {
                     Term = _currentTerm,
                     Success = false,
+                };
+            }
+        }
+
+        public async Task<RequestVoteResult> RequestVoteAsync(RequestVoteArguments request)
+        {
+            lock (_lock)
+            {
+                if (request.Term > _currentTerm)
+                {
+                    Log.Information("Term {Term} is greater than my term {CurrentTerm}, resetting to follower. Candidate: {CandidateId}", request.Term, _currentTerm, request.CandidateId);
+                    _currentTerm = request.Term;
+                    _votedFor = null;
+                    State = NodeState.Follower;
+                }
+                if (request.Term == _currentTerm)
+                {
+                    ResetElectionTimeout();
+                    if (_votedFor == null)
+                    {
+                        Log.Information("Voted yes for {CandidateId} in term {Term}", request.CandidateId, request.Term);
+                        _votedFor = request.CandidateId;
+                        return new RequestVoteResult
+                        {
+                            Term = _currentTerm,
+                            VoteGranted = true
+                        };
+                    }
+                }
+
+                Log.Information("Voted no for {CandidateId} in term {Term}", request.CandidateId, request.Term);
+                return new RequestVoteResult
+                {
+                    Term = _currentTerm,
+                    VoteGranted = false
                 };
             }
         }

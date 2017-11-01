@@ -4,7 +4,7 @@ namespace raft_dotnet.Communication
 {
     public interface IRaftRpc
     {
-        Task<AppendEntriesResult> AppendEntriesAsync(AppendEntriesArguments message);
-        Task<RequestVoteResult> RequestVoteAsync(RequestVoteArguments message);
+        Task<AppendEntriesResult> AppendEntriesAsync(AppendEntriesArguments request);
+        Task<RequestVoteResult> RequestVoteAsync(RequestVoteArguments request);
     }
 }
