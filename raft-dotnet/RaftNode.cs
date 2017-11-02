@@ -63,7 +63,7 @@ namespace raft_dotnet
         {
             foreach (var node in OtherNodes)
             {
-                AppendEntries(node);
+                Task.Run(() => AppendEntries(node));
             }
         }
 
@@ -115,7 +115,7 @@ namespace raft_dotnet
                 _votedFor = NodeName;
                 foreach (var node in OtherNodes)
                 {
-                    RequestVote(node);
+                    Task.Run(() => RequestVote(node));
                 }
             }
         }
