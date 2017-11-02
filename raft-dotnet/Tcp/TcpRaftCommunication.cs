@@ -84,12 +84,12 @@ namespace raft_dotnet.Tcp
             }, null);
         }
 
-        private void ClientLoop(TcpClient client)
+        private async Task ClientLoop(TcpClient client)
         {
             try
             {
                 Log.Information("Client connected");
-                ClientLoopInner(client);
+                await ClientLoopInner(client);
             }
             catch (IOException ex)
             {
@@ -115,39 +115,32 @@ namespace raft_dotnet.Tcp
 
         private async Task ClientLoopInner(TcpClient client)
         {
-            try
+            using (var stream = client.GetStream())
             {
-                using (var stream = client.GetStream())
+                while (client.Connected)
                 {
-                    while (client.Connected)
-                    {
-                        var request = Serializer.DeserializeWithLengthPrefix<MessageWrapper>(stream, PrefixStyle.Base128);
-                        Log.Verbose("Message recieved {@Message}", request.Message);
+                    var request = Serializer.DeserializeWithLengthPrefix<MessageWrapper>(stream, PrefixStyle.Base128);
+                    Log.Verbose("Message recieved {@Message}", request.Message);
 
-                        if (request.Message is RequestVoteArguments requestVote)
-                        {
-                            var result = await Server.RequestVoteAsync(requestVote);
-                            var data = Serialize(result);
-                            Log.Verbose("Responding to RequestVoteArguments");
-                            await stream.WriteAsync(data, 0, data.Length);
-                        }
-                        else if (request.Message is AppendEntriesArguments appendEntries)
-                        {
-                            var result = await Server.AppendEntriesAsync(appendEntries);
-                            var data = Serialize(result);
-                            Log.Verbose("Responding to AppendEntriesArguments");
-                            await stream.WriteAsync(data, 0, data.Length);
-                        }
-                        else
-                        {
-                            throw new InvalidOperationException("Unknown message");
-                        }
+                    if (request.Message is RequestVoteArguments requestVote)
+                    {
+                        var result = await Server.RequestVoteAsync(requestVote);
+                        var data = Serialize(result);
+                        Log.Verbose("Responding to RequestVoteArguments");
+                        await stream.WriteAsync(data, 0, data.Length);
+                    }
+                    else if (request.Message is AppendEntriesArguments appendEntries)
+                    {
+                        var result = await Server.AppendEntriesAsync(appendEntries);
+                        var data = Serialize(result);
+                        Log.Verbose("Responding to AppendEntriesArguments");
+                        await stream.WriteAsync(data, 0, data.Length);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Unknown message");
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Client loop error");
             }
         }
 
