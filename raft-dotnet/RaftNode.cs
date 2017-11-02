@@ -34,6 +34,9 @@ namespace raft_dotnet
         private int _commitIndex = 0;
         private int _lastApplied = 0;
 
+        private int[] _nextIndex;
+        private int[] _matchIndex;
+
         public string NodeName { get; }
 
         public IRaftCommunication Communication { get; }
@@ -47,6 +50,8 @@ namespace raft_dotnet
             Communication = communication;
             communication.Server = this;
             _nodes = nodes;
+            _nextIndex = new int[_nodes.Length];
+            _matchIndex = new int[_nodes.Length];
             NodeName = nodeName;
             _electionTimeout.TimeoutReached += (sender, args) => BeginElection();
             _appendEntriesTimeout.TimeoutReached += (sender, args) => SendAppendEntries();
@@ -64,12 +69,35 @@ namespace raft_dotnet
 
         private async Task AppendEntries(string node)
         {
-            var request = new AppendEntriesArguments
+            int index = Array.IndexOf(_nodes, node);
+            var prevLog = _log.SingleOrDefault(l => l.Index == _nextIndex[index] - 1);
+
+            if (_nextIndex[index] == _matchIndex[index])
             {
-                Term = _currentTerm,
-                LeaderId = NodeName
-            };
-            var result = await Communication.AppendEntriesAsync(node, request);
+                var request = new AppendEntriesArguments
+                {
+                    Term = _currentTerm,
+                    LeaderId = NodeName,
+                    PrevLogIndex = prevLog?.Index ?? 0,
+                    PrevLogTerm = prevLog?.Term ?? 0,
+                    Entries = _log.Where(l => l.Index >= _nextIndex[index]).ToArray(),
+                    LeaderCommit = _commitIndex
+                };
+                var result = await Communication.AppendEntriesAsync(node, request);
+            }
+            else
+            {
+                // Don't send actual logs until we know how up-to-date the node is
+                var request = new AppendEntriesArguments
+                {
+                    Term = _currentTerm,
+                    LeaderId = NodeName,
+                    PrevLogIndex = prevLog?.Index ?? 0,
+                    PrevLogTerm = prevLog?.Term ?? 0,
+                    LeaderCommit = _commitIndex
+                };
+                var result = await Communication.AppendEntriesAsync(node, request);
+            }
         }
         
         /// <summary>
@@ -125,12 +153,21 @@ namespace raft_dotnet
             var majority = Math.Ceiling((_nodes.Length + 1) / 2.0);
             if (_currentTermVotes >= majority)
             {
-                Log.Information("Recieved Majority {_currentTermVotes} in term {Term}", _currentTermVotes, _currentTerm);
-                State = NodeState.Leader;
-                _electionTimeout.Dispose();
-                _appendEntriesTimeout.Reset(TimeSpan.FromMilliseconds(50));
-                SendAppendEntries();
+                ComeToPower();
             }
+        }
+
+        private void ComeToPower()
+        {
+            Log.Information("Recieved Majority {_currentTermVotes} in term {Term}", _currentTermVotes, _currentTerm);
+            State = NodeState.Leader;
+            _electionTimeout.Dispose();
+            _appendEntriesTimeout.Reset(TimeSpan.FromMilliseconds(50));
+            for (int i = 0; i < _nextIndex.Length; i++)
+            {
+                _nextIndex[i] = _log.LastOrDefault()?.Index ?? 0;
+            }
+            SendAppendEntries();
         }
 
         public void Start()
