@@ -115,18 +115,19 @@ namespace raft_dotnet
                 _votedFor = NodeName;
                 foreach (var node in OtherNodes)
                 {
-                    var request = new RequestVoteArguments
-                    {
-                        CandidateId = NodeName,
-                        Term = _currentTerm
-                    };
-                    Communication.RequestVoteAsync(node, request);
+                    RequestVote(node);
                 }
             }
         }
 
-        private void RequestVoteResponse(RequestVoteResult result)
+        private async Task RequestVote(string node)
         {
+            var request = new RequestVoteArguments
+            {
+                CandidateId = NodeName,
+                Term = _currentTerm
+            };
+            var result = await Communication.RequestVoteAsync(node, request);
             lock (_lock)
             {
                 if (result.Term > _currentTerm)
@@ -146,7 +147,7 @@ namespace raft_dotnet
                 }
             }
         }
-
+        
         private void RecordVote()
         {
             _currentTermVotes++;
