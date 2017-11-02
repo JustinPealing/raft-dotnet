@@ -33,7 +33,7 @@ namespace raft_dotnet.Tcp
             return (RequestVoteResult) await SendMessageAsync(destination, message);
         }
         
-        private async Task<object> SendMessageAsync(string destination, RaftMessage message)
+        private async Task<RaftMessage> SendMessageAsync(string destination, RaftMessage message)
         {
             if (destination == null)
             {
@@ -54,7 +54,7 @@ namespace raft_dotnet.Tcp
 
             var response = Serializer.DeserializeWithLengthPrefix<MessageWrapper>(stream, PrefixStyle.Base128);
             Log.Verbose("Recieved response from {Destination}", destination);
-            return response;
+            return response.Message;
         }
         
         private static byte[] Serialize(RaftMessage arguments)

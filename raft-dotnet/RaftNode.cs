@@ -69,37 +69,44 @@ namespace raft_dotnet
 
         private async Task AppendEntries(string node)
         {
-            int index = Array.IndexOf(_nodes, node);
-            var prevLog = _log.SingleOrDefault(l => l.Index == _nextIndex[index] - 1);
+            try
+            {
+                int index = Array.IndexOf(_nodes, node);
+                var prevLog = _log.SingleOrDefault(l => l.Index == _nextIndex[index] - 1);
 
-            if (_nextIndex[index] == _matchIndex[index])
-            {
-                var request = new AppendEntriesArguments
+                if (_nextIndex[index] == _matchIndex[index])
                 {
-                    Term = _currentTerm,
-                    LeaderId = NodeName,
-                    PrevLogIndex = prevLog?.Index ?? 0,
-                    PrevLogTerm = prevLog?.Term ?? 0,
-                    Entries = _log.Where(l => l.Index >= _nextIndex[index]).ToArray(),
-                    LeaderCommit = _commitIndex
-                };
-                var result = await Communication.AppendEntriesAsync(node, request);
+                    var request = new AppendEntriesArguments
+                    {
+                        Term = _currentTerm,
+                        LeaderId = NodeName,
+                        PrevLogIndex = prevLog?.Index ?? 0,
+                        PrevLogTerm = prevLog?.Term ?? 0,
+                        Entries = _log.Where(l => l.Index >= _nextIndex[index]).ToArray(),
+                        LeaderCommit = _commitIndex
+                    };
+                    var result = await Communication.AppendEntriesAsync(node, request);
+                }
+                else
+                {
+                    // Don't send actual logs until we know how up-to-date the node is
+                    var request = new AppendEntriesArguments
+                    {
+                        Term = _currentTerm,
+                        LeaderId = NodeName,
+                        PrevLogIndex = prevLog?.Index ?? 0,
+                        PrevLogTerm = prevLog?.Term ?? 0,
+                        LeaderCommit = _commitIndex
+                    };
+                    var result = await Communication.AppendEntriesAsync(node, request);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                // Don't send actual logs until we know how up-to-date the node is
-                var request = new AppendEntriesArguments
-                {
-                    Term = _currentTerm,
-                    LeaderId = NodeName,
-                    PrevLogIndex = prevLog?.Index ?? 0,
-                    PrevLogTerm = prevLog?.Term ?? 0,
-                    LeaderCommit = _commitIndex
-                };
-                var result = await Communication.AppendEntriesAsync(node, request);
+                Log.Error(ex, "Error in RequestVote");
             }
         }
-        
+
         /// <summary>
         /// Called when the election timeout is reached.
         /// </summary>
@@ -122,29 +129,36 @@ namespace raft_dotnet
 
         private async Task RequestVote(string node)
         {
-            var request = new RequestVoteArguments
+            try
             {
-                CandidateId = NodeName,
-                Term = _currentTerm
-            };
-            var result = await Communication.RequestVoteAsync(node, request);
-            lock (_lock)
-            {
-                if (result.Term > _currentTerm)
+                var request = new RequestVoteArguments
                 {
-                    Log.Information("Term {Term} is greater than my term {CurrentTerm}, resetting to follower.", result.Term, _currentTerm);
-                    _currentTerm = result.Term;
-                    _votedFor = null;
-                    State = NodeState.Follower;
-                }
-                else if (result.Term == _currentTerm && State == NodeState.Candidate)
+                    CandidateId = NodeName,
+                    Term = _currentTerm
+                };
+                var result = await Communication.RequestVoteAsync(node, request);
+                lock (_lock)
                 {
-                    Log.Information("Recieved vote {Vote} in term {Term}", result.VoteGranted, result.Term);
-                    if (result.VoteGranted)
+                    if (result.Term > _currentTerm)
                     {
-                        RecordVote();
+                        Log.Information("Term {Term} is greater than my term {CurrentTerm}, resetting to follower.", result.Term, _currentTerm);
+                        _currentTerm = result.Term;
+                        _votedFor = null;
+                        State = NodeState.Follower;
+                    }
+                    else if (result.Term == _currentTerm && State == NodeState.Candidate)
+                    {
+                        Log.Information("Recieved vote {Vote} in term {Term}", result.VoteGranted, result.Term);
+                        if (result.VoteGranted)
+                        {
+                            RecordVote();
+                        }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in RequestVote");
             }
         }
         
