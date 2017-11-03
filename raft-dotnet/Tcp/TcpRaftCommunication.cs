@@ -3,6 +3,8 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using ProtoBuf;
 using raft_dotnet.Communication;
@@ -14,6 +16,7 @@ namespace raft_dotnet.Tcp
     {
         private readonly string _listenAddress;
         private readonly ConcurrentDictionary<string, TcpClient> _clients = new ConcurrentDictionary<string, TcpClient>();
+        private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new ConcurrentDictionary<string, SemaphoreSlim>();
         private TcpListener _listener;
 
         public TcpRaftCommunication(string listenAddress)
@@ -40,30 +43,64 @@ namespace raft_dotnet.Tcp
                 throw new ArgumentNullException(nameof(destination));
             }
             
-            Log.Verbose("Sending {@Message} to {Destination}", message, destination);
+            var semaphor = GetLock(destination);
+            await semaphor.WaitAsync();
+            try
+            {
+                var stream = await GetTcpStream(destination);
+
+                var requestData = Serialize(new MessageWrapper {Message = message});
+                var requestHeader = BitConverter.GetBytes(requestData.Length);
+
+                Log.Verbose("Sending {Length} bytes to {Destination} - {RequestData}", requestData.Length, destination, Encoding.UTF8.GetString(requestData));
+                await stream.WriteAsync(requestHeader, 0, 4);
+                await stream.WriteAsync(requestData, 0, requestData.Length);
+
+                var responseHeader = await stream.ReadExactlyAsync(4);
+                var size = BitConverter.ToInt32(responseHeader, 0);
+                var responseBody = await stream.ReadExactlyAsync(size);
+                Log.Verbose("Recieved {Length} bytes from {Destination} - {RequestData}", size, destination, Encoding.UTF8.GetString(responseBody));
+
+                return Deserialize(responseBody).Message;
+            }
+            finally
+            {
+                semaphor.Release();
+            }
+        }
+
+        private MessageWrapper Deserialize(byte[] responseBody)
+        {
+            using (var memoryStream = new MemoryStream(responseBody))
+            {
+                return Serializer.Deserialize<MessageWrapper>(memoryStream);
+            }
+        }
+
+        private static byte[] Serialize(MessageWrapper message)
+        {
+            using (var memoryStream = new MemoryStream())
+            {
+                Serializer.Serialize(memoryStream, message);
+                return memoryStream.ToArray();
+            }
+        }
+
+        private async Task<NetworkStream> GetTcpStream(string destination)
+        {
             var client = _clients.GetOrAdd(destination, s => new TcpClient());
             if (!client.Connected)
             {
                 var port = int.Parse(destination.Split(":")[1]);
                 await client.ConnectAsync("localhost", port);
             }
-
-            var data = Serialize(message);
             var stream = client.GetStream();
-            await stream.WriteAsync(data, 0, data.Length);
-
-            var response = Serializer.DeserializeWithLengthPrefix<MessageWrapper>(stream, PrefixStyle.Base128);
-            Log.Verbose("Recieved response from {Destination}", destination);
-            return response.Message;
+            return stream;
         }
-        
-        private static byte[] Serialize(RaftMessage arguments)
+
+        private SemaphoreSlim GetLock(string destination)
         {
-            using (var memoryStream = new MemoryStream())
-            {
-                Serializer.SerializeWithLengthPrefix(memoryStream, new MessageWrapper {Message = arguments}, PrefixStyle.Base128);
-                return memoryStream.ToArray();
-            }
+            return _locks.GetOrAdd(destination, s => new SemaphoreSlim(1));
         }
 
         public void Start()
@@ -119,22 +156,36 @@ namespace raft_dotnet.Tcp
             {
                 while (client.Connected)
                 {
-                    var request = Serializer.DeserializeWithLengthPrefix<MessageWrapper>(stream, PrefixStyle.Base128);
-                    Log.Verbose("Message recieved {@Message}", request.Message);
+                    var responseHeader = await stream.ReadExactlyAsync(4);
+                    var size = BitConverter.ToInt32(responseHeader, 0);
+
+                    var requestData = await stream.ReadExactlyAsync(size);
+                    
+                    Log.Verbose("Recieved {Length} bytes - {RequestData}", size, Encoding.UTF8.GetString(requestData));
+
+                    var request = Deserialize(requestData);
 
                     if (request.Message is RequestVoteArguments requestVote)
                     {
                         var result = await Server.RequestVoteAsync(requestVote);
-                        var data = Serialize(result);
-                        Log.Verbose("Responding to RequestVoteArguments");
-                        await stream.WriteAsync(data, 0, data.Length);
+
+                        var responseData = Serialize(new MessageWrapper { Message = result });
+                        var responseSize = BitConverter.GetBytes(responseData.Length);
+                        await stream.WriteAsync(responseSize, 0, 4);
+                        await stream.WriteAsync(responseData, 0, responseData.Length);
+                        
+                        Log.Verbose("Sent {Length} bytes - {ResponseData}", responseData.Length, Encoding.UTF8.GetString(responseData));
                     }
                     else if (request.Message is AppendEntriesArguments appendEntries)
                     {
                         var result = await Server.AppendEntriesAsync(appendEntries);
-                        var data = Serialize(result);
-                        Log.Verbose("Responding to AppendEntriesArguments");
-                        await stream.WriteAsync(data, 0, data.Length);
+
+                        var responseData = Serialize(new MessageWrapper { Message = result });
+                        var responseSize = BitConverter.GetBytes(responseData.Length);
+                        await stream.WriteAsync(responseSize, 0, 4);
+                        await stream.WriteAsync(responseData, 0, responseData.Length);
+
+                        Log.Verbose("Sent {Length} bytes - {ResponseData}", responseData.Length, Encoding.UTF8.GetString(responseData));
                     }
                     else
                     {
